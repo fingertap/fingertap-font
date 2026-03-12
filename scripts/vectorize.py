@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Vectorize PNG icons to SVG for font generation.
+Vectorize PNG/JPEG icons to SVG for font generation.
 
 Input requirements:
-  - PNG files in the input directory
-  - File naming: <icon-name>.png (e.g., feishu.png, wechat.png)
+  - PNG or JPEG files in the input directory
+  - File naming: <icon-name>.png/jpg (e.g., feishu.png, wechat.jpg)
   - Icon name must be lowercase, alphanumeric + hyphens only
-  - Recommended: square images, at least 128x128 px, with transparent background
-  - The icon should be a simple, recognizable silhouette shape
+  - Recommended: square images, at least 128x128 px
 
-Pipeline: PNG → grayscale → threshold → BMP → potrace → SVG (1024x1024)
+Strategy:
+  - With alpha: extract silhouette from alpha channel (non-transparent = icon)
+  - Without alpha (JPEG/opaque PNG): remove white/near-white background via
+    flood-fill, then extract the resulting alpha as silhouette
+  - Then: BMP → potrace → SVG
 """
 
 import argparse
@@ -42,74 +45,33 @@ def vectorize_png(png_path: str, svg_path: str, threshold: int = 50) -> bool:
         )
         has_alpha = 'a' in result.stdout.lower()
 
-        if has_alpha:
-            # For icons with alpha, try two strategies and pick the better one:
-            #
-            # 1. Grayscale: flatten → gray → threshold
-            #    Pros: preserves internal luminance detail
-            #    Cons: loses bright-colored regions (e.g., green on feishu)
-            #
-            # 2. Alpha: extract alpha channel as shape
-            #    Pros: captures full silhouette regardless of color
-            #    Cons: loses all internal detail
-            #
-            # We generate both BMPs, measure their black pixel coverage,
-            # and pick the one with more coverage (more of the icon preserved).
-
-            bmp_gray = bmp_path + '.gray.bmp'
-            bmp_alpha = bmp_path + '.alpha.bmp'
-
-            # Grayscale approach
+        if not has_alpha:
+            # No alpha (JPEG or opaque PNG): remove white/near-white background,
+            # then extract the resulting alpha channel as silhouette.
+            # -fuzz 15% tolerates near-white pixels and slight gradients at edges.
             subprocess.run([
                 'convert', png_path,
                 '-resize', '1024x1024',
-                '-background', 'white',
-                '-flatten',
-                '-colorspace', 'Gray',
+                '-fuzz', '15%',
+                '-transparent', 'white',     # white/near-white → transparent
+                '-alpha', 'extract',         # alpha → grayscale
+                '-negate',                   # invert: was-opaque → black
                 '-threshold', f'{threshold}%',
-                f'BMP3:{bmp_gray}'
+                f'BMP3:{bmp_path}'
             ], check=True, capture_output=True)
-
-            # Alpha approach
+        else:
+            # Has alpha: extract silhouette directly from alpha channel.
+            # non-transparent pixels → black (icon), transparent → white (background)
             subprocess.run([
                 'convert', png_path,
                 '-resize', '1024x1024',
                 '-alpha', 'extract',
                 '-negate',
                 '-threshold', f'{threshold}%',
-                f'BMP3:{bmp_alpha}'
-            ], check=True, capture_output=True)
-
-            # Compare: lower mean = more black pixels = more icon coverage
-            def get_mean(path):
-                r = subprocess.run(
-                    ['identify', '-format', '%[mean]', f'BMP3:{path}'],
-                    capture_output=True, text=True, check=True
-                )
-                return float(r.stdout.strip())
-
-            mean_gray = get_mean(bmp_gray)
-            mean_alpha = get_mean(bmp_alpha)
-
-            # Pick the one with more black pixels (lower mean)
-            if mean_gray < 65000 and mean_gray <= mean_alpha:
-                os.rename(bmp_gray, bmp_path)
-                os.remove(bmp_alpha)
-            else:
-                os.rename(bmp_alpha, bmp_path)
-                os.remove(bmp_gray)
-        else:
-            # No alpha: use luminance-based threshold
-            subprocess.run([
-                'convert', png_path,
-                '-resize', '1024x1024',
-                '-colorspace', 'Gray',
-                '-threshold', f'{threshold}%',
                 f'BMP3:{bmp_path}'
             ], check=True, capture_output=True)
 
-        # Step 2: BMP → SVG via potrace
-        # -s = SVG output, -W/H set dimensions, --flat = no grouping
+        # BMP → SVG via potrace
         subprocess.run([
             'potrace', bmp_path,
             '-s',                   # SVG output
@@ -137,7 +99,7 @@ def vectorize_directory(png_dir: str, svg_dir: str, threshold: int = 50) -> list
 
     png_files = sorted([
         f for f in os.listdir(png_dir)
-        if f.lower().endswith('.png')
+        if f.lower().endswith(('.png', '.jpg', '.jpeg'))
     ])
 
     if not png_files:
@@ -149,9 +111,9 @@ def vectorize_directory(png_dir: str, svg_dir: str, threshold: int = 50) -> list
     print()
 
     results = []
-    for png_file in png_files:
-        name = os.path.splitext(png_file)[0]
-        png_path = os.path.join(png_dir, png_file)
+    for img_file in png_files:
+        name = os.path.splitext(img_file)[0]
+        png_path = os.path.join(png_dir, img_file)
         svg_path = os.path.join(svg_dir, f'{name}.svg')
         if vectorize_png(png_path, svg_path, threshold):
             results.append(svg_path)
