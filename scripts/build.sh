@@ -29,10 +29,9 @@ echo ""
 # Step 1: Vectorize images that don't already have a corresponding SVG
 IMG_COUNT=0
 VECTORIZE_COUNT=0
-for img in icons/png/*.png icons/png/*.jpg icons/png/*.jpeg 2>/dev/null; do
+for img in icons/png/*.png icons/png/*.jpg icons/png/*.jpeg; do
     [ -f "$img" ] || continue
     IMG_COUNT=$((IMG_COUNT + 1))
-    # Strip any extension to get the base name
     name=$(basename "$img")
     name="${name%.*}"
     if [ ! -f "icons/svg/${name}.svg" ]; then
@@ -43,7 +42,7 @@ done
 if [ "$VECTORIZE_COUNT" -gt 0 ]; then
     echo "--- Step 1: Vectorize images ($VECTORIZE_COUNT of $IMG_COUNT, skipping those with existing SVGs) ---"
     TMPDIR=$(mktemp -d)
-    for img in icons/png/*.png icons/png/*.jpg icons/png/*.jpeg 2>/dev/null; do
+    for img in icons/png/*.png icons/png/*.jpg icons/png/*.jpeg; do
         [ -f "$img" ] || continue
         name=$(basename "$img")
         name="${name%.*}"
