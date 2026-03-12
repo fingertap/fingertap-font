@@ -208,18 +208,21 @@ def generate_preview(codepoints: dict, output_dir: str):
   font-family: 'Fingertap Icons';
   src: url('fingertap-icons.ttf') format('truetype');
 }
-body { font-family: sans-serif; background: #1a1a2e; color: #eee; padding: 2em; }
-h1 { color: #e94560; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1em; }
-.icon { background: #16213e; border-radius: 8px; padding: 1em; text-align: center; }
-.glyph { font-family: 'Fingertap Icons'; font-size: 48px; display: block; margin-bottom: 0.5em; }
-.name { font-size: 12px; color: #a0a0a0; display: block; }
-.code { font-size: 11px; color: #666; display: block; margin-top: 4px; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #0a0a0a; color: #e5e5e5; padding: 3em; }
+h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+.subtitle { font-size: 14px; color: #525252; margin-bottom: 2em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.icon { background: #171717; border: 1px solid #262626; border-radius: 10px; padding: 1.2em 0.8em; text-align: center; transition: border-color 0.2s; }
+.icon:hover { border-color: #525252; }
+.glyph { font-family: 'Fingertap Icons'; font-size: 36px; display: block; margin-bottom: 0.6em; color: #fafafa; }
+.name { font-size: 12px; color: #a3a3a3; display: block; }
+.code { font-size: 11px; color: #525252; display: block; margin-top: 4px; font-family: 'SF Mono', 'Fira Code', monospace; }
 </style>
 </head>
 <body>
   <h1>Fingertap Icons</h1>
-  <p>%d icons | Range: U+F534+</p>
+  <p class="subtitle">%d icons &middot; U+F534+</p>
   <div class="grid">
 %s
   </div>
