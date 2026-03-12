@@ -55,9 +55,11 @@ After `make`:
 - `dist/cheatsheet.txt` — copyable character reference
 - `dist/preview.html` — browser preview page
 
-## Codepoint Range
+## How It Works
 
-U+F534 onwards (BMP Private Use Area). Does not conflict with Nerd Fonts, Powerline, Font Awesome, Devicons, Codicons, or Octicons.
+- **Codepoint range**: U+F534 onwards (BMP Private Use Area). Carefully chosen to avoid conflicts with Nerd Fonts, Powerline, Font Awesome, Devicons, Codicons, and Octicons.
+- **Centroid-based centering**: Icons are positioned using area-weighted centroid (center of mass) computed via the Shoelace formula on glyph contours, rather than simple bounding-box centering. This ensures asymmetric icons like the Feishu bird appear visually balanced.
+- **Auto-scaling**: Each icon is scaled to 90% of the em square with uniform padding, regardless of the original SVG viewBox size.
 
 ## Dependencies
 

@@ -35,6 +35,54 @@ START_CODEPOINT = 0xF534  # Start of our PUA range (avoids Nerd Fonts conflict)
 EM_SIZE = 1024
 
 
+def compute_centroid(glyph):
+    """Compute area-weighted centroid of a glyph using the Shoelace formula.
+
+    For each contour, treat the points (on-curve and off-curve) as a polygon,
+    compute its signed area and centroid contribution, then combine all contours
+    weighted by their absolute area.
+
+    Returns (cx, cy) or None if the glyph has no usable contours.
+    """
+    layer = glyph.foreground
+    total_area = 0.0
+    weighted_cx = 0.0
+    weighted_cy = 0.0
+
+    for contour in layer:
+        points = [(p.x, p.y) for p in contour]
+        n = len(points)
+        if n < 3:
+            continue
+
+        # Shoelace formula
+        area = 0.0
+        cx = 0.0
+        cy = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            cross = points[i][0] * points[j][1] - points[j][0] * points[i][1]
+            area += cross
+            cx += (points[i][0] + points[j][0]) * cross
+            cy += (points[i][1] + points[j][1]) * cross
+
+        area /= 2.0
+        if abs(area) < 0.001:
+            continue
+
+        cx /= (6.0 * area)
+        cy /= (6.0 * area)
+
+        abs_area = abs(area)
+        total_area += abs_area
+        weighted_cx += cx * abs_area
+        weighted_cy += cy * abs_area
+
+    if total_area > 0:
+        return (weighted_cx / total_area, weighted_cy / total_area)
+    return None
+
+
 def build_font(svg_dir: str, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
 
@@ -93,15 +141,24 @@ def build_font(svg_dir: str, output_dir: str):
                     mat = psMat.scale(scale)
                     glyph.transform(mat)
 
-                # Re-read bbox after scale
-                bbox = glyph.boundingBox()
-                width = bbox[2] - bbox[0]
-                height = bbox[3] - bbox[1]
+                # Center using area-weighted centroid (visual center of mass)
+                # This ensures asymmetric icons appear visually centered
+                target_cx = EM_SIZE / 2.0
+                target_cy = (font.ascent - font.descent) / 2.0
 
-                # Center horizontally and vertically
-                # Target: centered in 0..EM_SIZE horizontally, -descent..ascent vertically
-                x_offset = (EM_SIZE - width) / 2 - bbox[0]
-                y_offset = (font.ascent - height) / 2 - bbox[3] + font.ascent
+                centroid = compute_centroid(glyph)
+                if centroid:
+                    cx, cy = centroid
+                    x_offset = target_cx - cx
+                    y_offset = target_cy - cy
+                else:
+                    # Fallback to bounding box center
+                    bbox = glyph.boundingBox()
+                    bcx = (bbox[0] + bbox[2]) / 2.0
+                    bcy = (bbox[1] + bbox[3]) / 2.0
+                    x_offset = target_cx - bcx
+                    y_offset = target_cy - bcy
+
                 mat = psMat.translate(x_offset, y_offset)
                 glyph.transform(mat)
 
