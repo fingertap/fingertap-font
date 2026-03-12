@@ -1,0 +1,4 @@
+dist/
+icons/svg/
+icons/png/
+.playwright-mcp/
