@@ -1,6 +1,18 @@
-# Fingertap Icons
+<p align="center">
+  <img src="assets/banner.png" alt="Fingertap Icons" width="800">
+</p>
 
-Custom icon font for status bar display. Uses Unicode Private Use Area (U+F534+) to avoid conflicts with Nerd Fonts.
+<p align="center">
+  Custom icon font for your status bar. Nerd Fonts compatible.
+</p>
+
+---
+
+## Screenshot
+
+<p align="center">
+  <img src="assets/screenshot.png" alt="Preview" width="700">
+</p>
 
 ## Quick Start
 
@@ -8,13 +20,20 @@ Custom icon font for status bar display. Uses Unicode Private Use Area (U+F534+)
 # 1. Put SVG icons in icons/svg/
 #    (Recommend: download monochrome SVGs from https://simpleicons.org)
 mkdir -p icons/svg
-# Example: curl -o icons/svg/telegram.svg https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/telegram.svg
+# Example:
+curl -o icons/svg/telegram.svg https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/telegram.svg
 
-# 2. Build
-bash scripts/build.sh
+# 2. Build & install
+make install
+```
 
-# 3. Install
-cp dist/fingertap-icons.ttf ~/.local/share/fonts/ && fc-cache -fv
+Or step by step:
+
+```bash
+make          # build font
+make install  # build + install to ~/.local/share/fonts/
+make clean    # remove generated files
+make uninstall
 ```
 
 ## Input Requirements
@@ -29,10 +48,10 @@ PNG fallback: place PNGs in `icons/png/`. They will be auto-vectorized via potra
 
 ## Output
 
-After `bash scripts/build.sh`:
+After `make`:
 
 - `dist/fingertap-icons.ttf` — the font file
-- `dist/codepoints.json` — name → Unicode mapping
+- `dist/codepoints.json` — name to Unicode mapping
 - `dist/cheatsheet.txt` — copyable character reference
 - `dist/preview.html` — browser preview page
 
@@ -45,3 +64,7 @@ U+F534 onwards (BMP Private Use Area). Does not conflict with Nerd Fonts, Powerl
 - `fontforge` with Python bindings (`apt install fontforge python3-fontforge`)
 - `potrace` (`apt install potrace`) — only needed for PNG vectorization
 - `imagemagick` (`apt install imagemagick`) — only needed for PNG vectorization
+
+## License
+
+[MIT](LICENSE)
