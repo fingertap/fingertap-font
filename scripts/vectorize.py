@@ -43,17 +43,61 @@ def vectorize_png(png_path: str, svg_path: str, threshold: int = 50) -> bool:
         has_alpha = 'a' in result.stdout.lower()
 
         if has_alpha:
-            # Strategy: use alpha channel as shape mask
-            # Opaque pixels → black (icon shape), transparent → white (background)
-            # This works regardless of the icon's actual color
+            # For icons with alpha, try two strategies and pick the better one:
+            #
+            # 1. Grayscale: flatten → gray → threshold
+            #    Pros: preserves internal luminance detail
+            #    Cons: loses bright-colored regions (e.g., green on feishu)
+            #
+            # 2. Alpha: extract alpha channel as shape
+            #    Pros: captures full silhouette regardless of color
+            #    Cons: loses all internal detail
+            #
+            # We generate both BMPs, measure their black pixel coverage,
+            # and pick the one with more coverage (more of the icon preserved).
+
+            bmp_gray = bmp_path + '.gray.bmp'
+            bmp_alpha = bmp_path + '.alpha.bmp'
+
+            # Grayscale approach
             subprocess.run([
                 'convert', png_path,
                 '-resize', '1024x1024',
-                '-alpha', 'extract',     # extract alpha as grayscale
-                '-negate',               # invert: opaque→black, transparent→white
+                '-background', 'white',
+                '-flatten',
+                '-colorspace', 'Gray',
                 '-threshold', f'{threshold}%',
-                f'BMP3:{bmp_path}'
+                f'BMP3:{bmp_gray}'
             ], check=True, capture_output=True)
+
+            # Alpha approach
+            subprocess.run([
+                'convert', png_path,
+                '-resize', '1024x1024',
+                '-alpha', 'extract',
+                '-negate',
+                '-threshold', f'{threshold}%',
+                f'BMP3:{bmp_alpha}'
+            ], check=True, capture_output=True)
+
+            # Compare: lower mean = more black pixels = more icon coverage
+            def get_mean(path):
+                r = subprocess.run(
+                    ['identify', '-format', '%[mean]', f'BMP3:{path}'],
+                    capture_output=True, text=True, check=True
+                )
+                return float(r.stdout.strip())
+
+            mean_gray = get_mean(bmp_gray)
+            mean_alpha = get_mean(bmp_alpha)
+
+            # Pick the one with more black pixels (lower mean)
+            if mean_gray < 65000 and mean_gray <= mean_alpha:
+                os.rename(bmp_gray, bmp_path)
+                os.remove(bmp_alpha)
+            else:
+                os.rename(bmp_alpha, bmp_path)
+                os.remove(bmp_gray)
         else:
             # No alpha: use luminance-based threshold
             subprocess.run([
