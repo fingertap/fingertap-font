@@ -87,8 +87,10 @@ ICONS = {"feishu": ft("feishu"), "Blender": ft("blender-1")}
 Shell:
 
 ```bash
-ft() { jq -r --arg n "$1" '.[$n]' ~/.local/share/fingertap-icons/codepoints.json \
-       | xargs printf '\\U%s\n'; }
+FT_MAP=~/.local/share/fingertap-icons/codepoints.json
+ft() { printf '%b\n' "\\U$(jq -r --arg n "$1" '.[$n]' "$FT_MAP")"; }
+
+ft feishu   # prints the glyph
 ```
 
 After adding a new icon, rebuild with `make install` and restart the consumer so
