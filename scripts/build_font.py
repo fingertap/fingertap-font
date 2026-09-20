@@ -7,8 +7,14 @@ Must be run with: fontforge -script build_font.py [args]
 Usage:
     fontforge -script scripts/build_font.py --input icons/svg --output dist
 
-Reads all .svg files from the input directory, assigns Unicode codepoints
-starting from U+F534, and generates a TTF font + codepoints.json mapping.
+Reads all .svg files from the input directory and generates a TTF font +
+codepoints.json mapping.
+
+Codepoints are STABLE: they come from codepoints.lock.json, a tracked registry
+mapping icon name -> codepoint. An icon keeps its codepoint forever, no matter
+how many icons are added, renamed or removed around it. New icons are appended
+at the next free codepoint starting from U+F534. Codepoints of deleted icons are
+tombstoned and never handed to a different icon.
 """
 
 import argparse
@@ -33,6 +39,79 @@ FONT_COPYRIGHT = "Custom icon font"
 
 START_CODEPOINT = 0xF534  # Start of our PUA range (avoids Nerd Fonts conflict)
 EM_SIZE = 1024
+
+# Tracked registry pinning icon name -> codepoint (see module docstring).
+DEFAULT_LOCK_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "codepoints.lock.json",
+)
+
+
+def load_lock(lock_path: str) -> dict:
+    """Load the name -> codepoint registry. Returns {} if it does not exist yet."""
+    if not os.path.exists(lock_path):
+        return {}
+
+    with open(lock_path, encoding='utf-8') as f:
+        data = json.load(f)
+
+    icons = data.get("icons", {})
+    lock = {}
+    seen = {}
+    for name, hex_cp in icons.items():
+        cp = int(hex_cp, 16)
+        if cp in seen:
+            print("ERROR: %s assigns U+%04X to both '%s' and '%s'."
+                  % (lock_path, cp, seen[cp], name))
+            sys.exit(1)
+        seen[cp] = name
+        lock[name] = cp
+    return lock
+
+
+def save_lock(lock_path: str, lock: dict):
+    """Write the registry back, ordered by codepoint so diffs stay append-only."""
+    icons = {
+        name: "%04X" % cp
+        for name, cp in sorted(lock.items(), key=lambda kv: kv[1])
+    }
+    data = {
+        "_comment": (
+            "Permanent name -> codepoint registry. DO NOT reorder or edit existing "
+            "entries: they are referenced by user configs (polybar, waybar, terminal, "
+            "etc). New icons are appended automatically by scripts/build_font.py. "
+            "Entries for deleted icons are kept as tombstones so their codepoint is "
+            "never reused by a different icon."
+        ),
+        "_range_start": "%04X" % START_CODEPOINT,
+        "icons": icons,
+    }
+    with open(lock_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def assign_codepoints(names, lock: dict):
+    """Resolve each icon name to its permanent codepoint.
+
+    Known names keep their codepoint. Unknown names are appended at the lowest
+    codepoint not present in the registry, so existing icons never shift.
+    Mutates and returns `lock`.
+    """
+    used = set(lock.values())
+    next_free = START_CODEPOINT
+    added = []
+
+    for name in names:
+        if name in lock:
+            continue
+        while next_free in used:
+            next_free += 1
+        lock[name] = next_free
+        used.add(next_free)
+        added.append(name)
+
+    return added
 
 
 def compute_centroid(glyph):
@@ -83,7 +162,7 @@ def compute_centroid(glyph):
     return None
 
 
-def build_font(svg_dir: str, output_dir: str):
+def build_font(svg_dir: str, output_dir: str, lock_path: str):
     os.makedirs(output_dir, exist_ok=True)
 
     # Collect SVG files
@@ -97,6 +176,19 @@ def build_font(svg_dir: str, output_dir: str):
         sys.exit(1)
 
     print("Building font from %d SVG file(s)" % len(svg_files))
+
+    # Resolve stable codepoints from the registry before touching the font
+    lock = load_lock(lock_path)
+    names = [os.path.splitext(f)[0] for f in svg_files]
+    added = assign_codepoints(names, lock)
+    if added:
+        print("New icon(s) assigned a codepoint: %s"
+              % ", ".join("%s -> U+%04X" % (n, lock[n]) for n in added))
+
+    missing = sorted(set(lock) - set(names))
+    if missing:
+        print("Note: %d codepoint(s) reserved for icons with no SVG present: %s"
+              % (len(missing), ", ".join(missing)))
 
     # Create new font
     font = fontforge.font()
@@ -114,12 +206,12 @@ def build_font(svg_dir: str, output_dir: str):
     notdef = font.createChar(-1, ".notdef")
     notdef.width = EM_SIZE
 
-    # Import SVGs and assign codepoints
+    # Import SVGs at their registry-assigned codepoints
     codepoints = {}
-    codepoint = START_CODEPOINT
 
     for svg_file in svg_files:
         name = os.path.splitext(svg_file)[0]
+        codepoint = lock[name]
         svg_path = os.path.join(svg_dir, svg_file)
 
         # Create glyph at this codepoint
@@ -167,14 +259,19 @@ def build_font(svg_dir: str, output_dir: str):
         hex_cp = "%04X" % codepoint
         codepoints[name] = hex_cp
         print("  U+%s  %s" % (hex_cp, name))
-        codepoint += 1
 
     # Generate TTF
     ttf_path = os.path.join(output_dir, "fingertap-icons.ttf")
     font.generate(ttf_path)
     print("\nFont generated: %s" % ttf_path)
     print("Glyphs: %d" % len(codepoints))
-    print("Range: U+%04X - U+%04X" % (START_CODEPOINT, codepoint - 1))
+    if codepoints:
+        assigned = [int(h, 16) for h in codepoints.values()]
+        print("Range: U+%04X - U+%04X" % (min(assigned), max(assigned)))
+
+    # Persist the registry (appends any newly assigned codepoints)
+    save_lock(lock_path, lock)
+    print("Registry: %s" % lock_path)
 
     # Write codepoint mapping
     json_path = os.path.join(output_dir, "codepoints.json")
@@ -270,9 +367,12 @@ def main():
                         help='Input directory with SVG files (default: icons/svg)')
     parser.add_argument('--output', '-o', default='dist',
                         help='Output directory (default: dist)')
+    parser.add_argument('--lock', '-l', default=DEFAULT_LOCK_PATH,
+                        help='Path to the permanent codepoint registry '
+                             '(default: codepoints.lock.json in the project root)')
     args = parser.parse_args()
 
-    build_font(args.input, args.output)
+    build_font(args.input, args.output, args.lock)
 
 
 if __name__ == '__main__':

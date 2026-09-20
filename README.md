@@ -55,9 +55,13 @@ After `make`:
 - `dist/cheatsheet.txt` — copyable character reference
 - `dist/preview.html` — browser preview page
 
+`codepoints.lock.json` in the project root is the source of truth for codepoint
+assignment. Commit it. Never reorder or edit existing entries by hand.
+
 ## How It Works
 
 - **Codepoint range**: U+F534 onwards (BMP Private Use Area). Carefully chosen to avoid conflicts with Nerd Fonts, Powerline, Font Awesome, Devicons, Codicons, and Octicons.
+- **Stable codepoints**: `codepoints.lock.json` (tracked in git) pins each icon name to a permanent codepoint. An icon keeps its codepoint forever — adding, renaming or deleting icons never shifts the others, so configs that reference these characters stay correct across rebuilds. New icons are appended at the next free codepoint; codepoints of deleted icons are tombstoned and never reassigned.
 - **Centroid-based centering**: Icons are positioned using area-weighted centroid (center of mass) computed via the Shoelace formula on glyph contours, rather than simple bounding-box centering. This ensures asymmetric icons like the Feishu bird appear visually balanced.
 - **Auto-scaling**: Each icon is scaled to 90% of the em square with uniform padding, regardless of the original SVG viewBox size.
 

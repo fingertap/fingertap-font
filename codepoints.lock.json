@@ -1,0 +1,15 @@
+{
+  "_comment": "Permanent name -> codepoint registry. DO NOT reorder or edit existing entries: they are referenced by user configs (polybar, waybar, terminal, etc). New icons are appended automatically by scripts/build_font.py. Entries for deleted icons are kept as tombstones so their codepoint is never reused by a different icon.",
+  "_range_start": "F534",
+  "icons": {
+    "cursor-ai": "F534",
+    "feishu": "F535",
+    "grok-bot": "F536",
+    "inkscape": "F537",
+    "sunlogin": "F538",
+    "thunderbird": "F539",
+    "wemeet": "F53A",
+    "zoom": "F53B",
+    "blender-1": "F53C"
+  }
+}
