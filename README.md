@@ -58,6 +58,43 @@ After `make`:
 `codepoints.lock.json` in the project root is the source of truth for codepoint
 assignment. Commit it. Never reorder or edit existing entries by hand.
 
+## Using the Icons From Configs
+
+`make install` also publishes the mapping to a stable location:
+
+```
+~/.local/share/fingertap-icons/codepoints.json
+```
+
+Resolve icons **by name** from there rather than pasting the literal character
+into your config. Names are permanent; pasted characters silently rot whenever
+the icon set changes, and are unreadable in a diff.
+
+Python (e.g. a polybar/waybar script):
+
+```python
+import json, os
+
+_MAP = json.load(open(os.path.expanduser(
+    "~/.local/share/fingertap-icons/codepoints.json"), encoding="utf-8"))
+
+def ft(name):
+    return chr(int(_MAP[name], 16))
+
+ICONS = {"feishu": ft("feishu"), "Blender": ft("blender-1")}
+```
+
+Shell:
+
+```bash
+ft() { jq -r --arg n "$1" '.[$n]' ~/.local/share/fingertap-icons/codepoints.json \
+       | xargs printf '\\U%s\n'; }
+```
+
+After adding a new icon, rebuild with `make install` and restart the consumer so
+it re-reads the mapping. Existing icons never move, so nothing else needs
+touching.
+
 ## How It Works
 
 - **Codepoint range**: U+F534 onwards (BMP Private Use Area). Carefully chosen to avoid conflicts with Nerd Fonts, Powerline, Font Awesome, Devicons, Codicons, and Octicons.

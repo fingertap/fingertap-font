@@ -23,6 +23,11 @@ else
 	cp dist/fingertap-icons.ttf ~/.local/share/fonts/
 	fc-cache -fv
 endif
+	@# Publish the name -> codepoint mapping so consumers (polybar, waybar,
+	@# scripts) can resolve icons by name instead of hardcoding characters.
+	mkdir -p ~/.local/share/fingertap-icons
+	cp dist/codepoints.json ~/.local/share/fingertap-icons/codepoints.json
+	@echo "Mapping published: ~/.local/share/fingertap-icons/codepoints.json"
 
 uninstall:
 ifeq ($(UNAME),Darwin)
@@ -31,6 +36,7 @@ else
 	rm -f ~/.local/share/fonts/fingertap-icons.ttf
 	fc-cache -fv
 endif
+	rm -rf ~/.local/share/fingertap-icons
 
 clean:
 	rm -rf dist/* icons/svg/*
